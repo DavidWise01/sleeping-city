@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Sleeping City — Anatomy of a Repository</title>
+<style>
+  :root{
+    --night:#070b16; --night2:#0c1322; --deep:#040711;
+    --sodium:#e6a23c; --sodium-dim:#9c7635; --sodium-glow:#ffc662;
+    --neon:#43c9d6; --neon-dim:#2b6e76; --neon-glow:#6fe8f0;
+    --strange:#b9c4cf; --strange-dim:#5e6b78; --strange-glow:#e4edf5;
+    --signal:#d8512a; --signal-glow:#ff7a4d;
+    --steel:#243049; --steel-bright:#3a4a6b; --bone:#cdd6e4; --bone-dim:#7986a0;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; color:var(--bone);
+    background:
+      radial-gradient(120% 60% at 50% 0%, #11192e 0%, var(--night) 45%, var(--deep) 100%) fixed;
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif; line-height:1.5;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:clamp(24px,4vw,56px) clamp(16px,4vw,36px) 100px;}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;}
+  .cond{font-family:"DIN Condensed","Oswald",ui-sans-serif,sans-serif; text-transform:uppercase; letter-spacing:.18em;}
+
+  /* HERO */
+  .clockbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:26px; flex-wrap:wrap; gap:12px;}
+  .eyebrow{color:var(--neon); font-size:12px;}
+  .clock{font-family:ui-monospace,monospace; font-size:15px; color:var(--sodium); letter-spacing:.1em;
+    border:1px solid var(--steel); padding:6px 14px; border-radius:2px; background:rgba(0,0,0,.3);}
+  .clock b{color:var(--sodium-glow);}
+  h1{font-size:clamp(34px,6.5vw,68px); line-height:.98; margin:0; font-weight:600; letter-spacing:-.01em;}
+  h1 .lit{color:var(--sodium-glow); text-shadow:0 0 26px rgba(230,162,60,.45);}
+  .dek{max-width:62ch; color:var(--bone-dim); font-size:clamp(15px,1.8vw,18px); margin:16px 0 0;}
+  .dek b{color:var(--bone);}
+
+  .opstate{display:inline-flex; align-items:center; gap:9px; margin-top:18px; font-size:13px;
+    border:1px solid var(--steel); border-radius:2px; padding:7px 14px; background:rgba(0,0,0,.3);}
+  .opstate .eye{width:10px;height:10px;border-radius:50%;background:var(--sodium);transition:.3s;
+    box-shadow:0 0 10px var(--sodium);}
+  .opstate.asleep .eye{background:var(--strange-dim);box-shadow:none;}
+  .opstate .lbl{color:var(--bone-dim);} .opstate .val{color:var(--sodium);} .opstate.asleep .val{color:var(--strange);}
+
+  /* CONTROLS */
+  .controls{display:flex; gap:10px; flex-wrap:wrap; margin:26px 0 8px;}
+  button{font-family:"DIN Condensed","Oswald",sans-serif; text-transform:uppercase; letter-spacing:.12em;
+    cursor:pointer; border-radius:2px; font-size:13px; padding:11px 18px; transition:.15s; background:transparent;}
+  .b-push{color:var(--sodium); border:1px solid var(--sodium-dim);} .b-push:hover{background:rgba(230,162,60,.12);}
+  .b-cron{color:var(--signal); border:1px solid var(--signal); position:relative;}
+  .b-cron:hover{background:rgba(216,81,42,.14);}
+  .b-reset{color:var(--bone-dim); border:1px solid var(--steel);} .b-reset:hover{color:var(--bone);}
+  .hint{font-size:12.5px;color:var(--bone-dim);font-style:italic;margin:10px 0 0;}
+
+  /* THE CITY — three strata */
+  .city{margin-top:30px; border:1px solid var(--steel); border-radius:3px; overflow:hidden;
+    background:linear-gradient(180deg, rgba(12,19,34,.6), rgba(4,7,17,.9));}
+  .stratum{position:relative; padding:20px clamp(16px,3vw,28px); border-bottom:1px solid var(--steel);}
+  .stratum:last-child{border-bottom:none;}
+  .stratum.active{box-shadow:inset 0 0 0 1px currentColor;}
+  .s-head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:6px;}
+  .s-num{font-family:"DIN Condensed",sans-serif; font-size:13px; letter-spacing:.2em;}
+  .s-title{font-size:20px; margin:0; letter-spacing:.01em;}
+  .s-sub{font-size:12px; margin-left:auto;}
+  .trust{font-family:"DIN Condensed",sans-serif; text-transform:uppercase; letter-spacing:.14em; font-size:11px;
+    padding:3px 10px; border-radius:2px; border:1px solid currentColor;}
+  .s-desc{font-size:13.5px; color:var(--bone-dim); max-width:70ch; margin:4px 0 14px;}
+  .s-desc b{color:var(--bone);}
+
+  /* layer color identities */
+  .overlay-l{color:var(--sodium);} .overlay-l .s-title{color:var(--sodium-glow);}
+  .substrate-l{color:var(--neon);} .substrate-l .s-title{color:var(--neon-glow);}
+  .machine-l{color:var(--strange);} .machine-l .s-title{color:var(--strange-glow);}
+
+  /* OVERLAY: the skyline */
+  .skyline{display:flex; align-items:flex-end; gap:5px; height:96px; padding:0 2px;
+    border-bottom:1px solid var(--steel); overflow:hidden;}
+  .tower{width:18px; background:linear-gradient(180deg,var(--sodium-dim),#1a1305);
+    border:1px solid var(--sodium-dim); border-bottom:none; position:relative; flex:0 0 auto;
+    transition:.5s; animation:rise .6s ease;}
+  .tower::before{content:""; position:absolute; inset:3px 3px auto 3px; height:4px;
+    background:var(--sodium-glow); box-shadow:0 0 8px var(--sodium-glow); opacity:.8;}
+  .tower::after{content:""; position:absolute; left:3px; right:3px; top:12px; bottom:6px;
+    background-image:repeating-linear-gradient(180deg, transparent 0 4px, rgba(255,198,98,.35) 4px 7px);}
+  @keyframes rise{from{height:0 !important; opacity:0;} to{opacity:1;}}
+  .tower.bot{background:linear-gradient(180deg,var(--strange-dim),#10151a); border-color:var(--strange-dim);}
+  .tower.bot::before{background:var(--strange-glow); box-shadow:0 0 8px var(--strange-glow);}
+  .overlay-meta{display:flex; gap:20px; margin-top:12px; font-size:12.5px; color:var(--bone-dim); flex-wrap:wrap;}
+  .overlay-meta b{color:var(--sodium); font-family:ui-monospace,monospace;}
+  .overlay-meta .pages{color:var(--neon);}
+
+  /* SUBSTRATE: the commit DAG */
+  .dag{display:flex; gap:0; align-items:center; overflow-x:auto; padding:6px 0 12px;}
+  .node{flex:0 0 auto; display:flex; align-items:center;}
+  .obj{min-width:120px; border:1px solid var(--neon-dim); border-radius:2px; padding:7px 9px;
+    background:rgba(67,201,214,.05); transition:.3s;}
+  .obj .hash{font-family:ui-monospace,monospace; font-size:12px; color:var(--neon-glow);}
+  .obj .who{font-size:10.5px; color:var(--bone-dim); margin-top:2px; white-space:nowrap; overflow:hidden;
+    text-overflow:ellipsis; max-width:120px;}
+  .obj .who.bot{color:var(--strange);}
+  .obj.broken{border-color:var(--signal); background:rgba(216,81,42,.12); animation:shudder .4s;}
+  .obj.broken .hash{color:var(--signal-glow);}
+  @keyframes shudder{0%,100%{transform:none}25%{transform:translateY(-3px)}75%{transform:translateY(2px)}}
+  .link{width:26px; height:1px; background:var(--neon-dim); flex:0 0 auto; position:relative;}
+  .link.broken{background:var(--signal); height:2px;}
+  .link::after{content:"◂"; position:absolute; left:-2px; top:-8px; color:var(--neon-dim); font-size:11px;}
+  .link.broken::after{color:var(--signal);}
+  .sub-tools{margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .tamper{font-family:"DIN Condensed",sans-serif;text-transform:uppercase;letter-spacing:.12em;font-size:11.5px;
+    color:var(--neon); border:1px solid var(--neon-dim); background:transparent; padding:7px 13px; cursor:pointer; border-radius:2px;}
+  .tamper:hover{background:rgba(67,201,214,.1);}
+  .sub-note{font-size:12px; color:var(--bone-dim); font-style:italic;}
+  .sub-note.warn{color:var(--signal-glow); font-style:normal;}
+
+  /* MACHINE: the clockwork triggers */
+  .gears{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-top:4px;}
+  .gear{border:1px solid var(--strange-dim); border-radius:2px; padding:11px 13px; background:rgba(185,196,207,.03);}
+  .gear .ev{font-family:ui-monospace,monospace; font-size:12px; color:var(--strange-glow);}
+  .gear .does{font-size:12px; color:var(--bone-dim); margin-top:4px;}
+  .gear.firing{border-color:var(--signal); background:rgba(216,81,42,.12); box-shadow:0 0 16px rgba(216,81,42,.25);}
+
+  /* CASCADE pulse */
+  .pulse-line{position:absolute; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--signal-glow),transparent);
+    opacity:0; pointer-events:none;}
+  .stratum.pulsing .pulse-line{animation:sweep .5s ease;}
+  @keyframes sweep{0%{opacity:0;transform:translateY(40px)}40%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
+
+  /* CODA */
+  .coda{margin-top:40px; padding:28px clamp(18px,3vw,34px); border:1px solid var(--steel); border-radius:3px;
+    background:linear-gradient(180deg, rgba(216,81,42,.05), rgba(4,7,17,.4));}
+  .coda h2{font-size:clamp(20px,3vw,28px); margin:0 0 10px;}
+  .coda h2 .lit{color:var(--sodium-glow);} .coda h2 .cold{color:var(--neon-glow);} .coda h2 .pale{color:var(--strange-glow);}
+  .coda p{color:var(--bone-dim); max-width:66ch; margin:10px 0 0; font-size:15px;}
+  .coda .jx{font-family:ui-monospace,monospace; color:var(--sodium-glow);}
+  .foot{margin-top:24px; color:var(--steel-bright); font-size:11.5px; font-family:"DIN Condensed",sans-serif;
+    text-transform:uppercase; letter-spacing:.16em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="clockbar">
+    <span class="eyebrow cond">Repository Anatomy · three strata · what runs while you sleep</span>
+    <span class="clock mono" id="clock">02:59</span>
+  </div>
+
+  <h1>The Sleeping <span class="lit">City</span></h1>
+  <p class="dek">A repository is three cities stacked. The <b>lit streets</b> you walk are a rendered overlay. The <b>machine-city beneath</b> stores everything by the hash of its own content — honest about what it holds, silent on whether it's true. And below that, the <b>clockwork</b> re-tunes the whole thing on a trigger, at 3am, while the operator's hand is off the wheel.</p>
+
+  <div class="opstate" id="opstate"><span class="eye"></span><span class="lbl">operator:</span><span class="val" id="opval">hands on the wheel</span></div>
+
+  <div class="controls">
+    <button class="b-push" id="push">Push a commit (you do it)</button>
+    <button class="b-cron" id="cron">Let the city sleep → 3am trigger</button>
+    <button class="b-reset" id="reset">Reset</button>
+  </div>
+  <p class="hint" id="hint">Push a commit yourself, or let the clock reach 3am and watch the machinery rebuild the city with no one at the keyboard.</p>
+
+  <div class="city" id="city">
+
+    <!-- OVERLAY -->
+    <section class="stratum overlay-l" id="L1" tabindex="0">
+      <div class="pulse-line"></div>
+      <div class="s-head">
+        <span class="s-num">STRATUM 01</span>
+        <h3 class="s-title">The Lit Streets — public overlay</h3>
+        <span class="s-sub trust">curated presentation</span>
+      </div>
+      <p class="s-desc">What github.com renders: the skyline of commits, the green squares, the language bar, the README, the Pages site. Almost none of it is source — it's <b>computed views</b>. It will happily render a self-attested field as if it were a fact.</p>
+      <div class="skyline" id="skyline"></div>
+      <div class="overlay-meta">
+        <span>commits shown: <b id="ovCount">3</b></span>
+        <span>contribution squares: <b id="ovSquares">3</b> lit</span>
+        <span class="pages">Pages: <b id="pagesState" style="color:var(--neon)">live</b></span>
+      </div>
+    </section>
+
+    <!-- SUBSTRATE -->
+    <section class="stratum substrate-l" id="L2" tabindex="0">
+      <div class="pulse-line"></div>
+      <div class="s-head">
+        <span class="s-num">STRATUM 02</span>
+        <h3 class="s-title">The Machine-City — git object store</h3>
+        <span class="s-sub trust">tamper-evident · not authentic</span>
+      </div>
+      <p class="s-desc">Underneath: blobs, trees, commits, tags — each named by the <b>hash of its own content</b>, chained parent→child into the DAG. You <b>cannot silently rewrite</b> a stored field (the hash breaks — tamper-evident). But nothing <b>verified</b> the author or date when they were written (authenticity: none).</p>
+      <div class="dag" id="dag"></div>
+      <div class="sub-tools">
+        <button class="tamper" id="tamper">Silently edit the oldest author</button>
+        <span class="sub-note" id="subNote">try to rewrite history — the hashes will tell on you</span>
+      </div>
+    </section>
+
+    <!-- MACHINE -->
+    <section class="stratum machine-l" id="L3" tabindex="0">
+      <div class="pulse-line"></div>
+      <div class="s-head">
+        <span class="s-num">STRATUM 03</span>
+        <h3 class="s-title">The Clockwork — what runs automatically</h3>
+        <span class="s-sub trust">trigger, not command</span>
+      </div>
+      <p class="s-desc">The autonomic layer. It acts on <b>events</b>, not commands — and the cron event acts on nothing but the clock. Configure it once; it runs itself forever, with no human in the loop. This is where the repo stops being a record and becomes an <b>actor</b>.</p>
+      <div class="gears">
+        <div class="gear" id="g-push"><div class="ev mono">on: push</div><div class="does">Pages rebuilds & redeploys the site</div></div>
+        <div class="gear" id="g-cron"><div class="ev mono">on: schedule (cron)</div><div class="does">fires at 3am — emits a commit, no one asked</div></div>
+        <div class="gear" id="g-bot"><div class="ev mono">release-please[bot]</div><div class="does">auto-opens release PRs on merge</div></div>
+        <div class="gear" id="g-dep"><div class="ev mono">dependabot[bot]</div><div class="does">auto-bumps dependencies on a timer</div></div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="coda">
+    <h2>What you're <span class="lit">shown</span>, what's <span class="cold">stored</span>, what <span class="pale">acts on its own</span>.</h2>
+    <p>The streets are a brochure — curated, and willing to print a name nobody checked. The machine-city beneath freezes that name into a hash: you can never quietly change it, and nothing ever confirmed it was true. And the clockwork publishes it all to the world on a schedule, untouched, at an hour when no one is awake to witness the trigger.</p>
+    <p>Every automatic deploy is one junction — <span class="jx">&lt;•</span> — an event, a workflow, and the unanswered question of who's accountable when the 3am cron ships something broken with the operator asleep. The Strangers are just <span class="mono" style="color:var(--strange-glow)">cron</span> with better coats.</p>
+    <p class="foot">three strata · presentation / integrity / autonomy · trust properties hashed-and-verified in node before drawn</p>
+  </div>
+
+</div>
+
+<script>
+const initial = [
+  { hash:"9e6f6fd7", who:"Claude Opus 4.6", bot:false },
+  { hash:"7004dfc8", who:"Claude Opus 4.6", bot:false },
+  { hash:"4cb69530", who:"Claude Opus 4.6", bot:false },
+];
+let commits = JSON.parse(JSON.stringify(initial));
+let pagesGen = 0, tampered = false, clockMin = 59, asleep = false;
+
+const $ = id => document.getElementById(id);
+function rnd(){ return Math.random().toString(16).slice(2,10); }
+
+function renderSkyline(){
+  const sky = $("skyline"); sky.innerHTML="";
+  const maxH = 92;
+  commits.forEach((c,i)=>{
+    const t = document.createElement("div");
+    t.className = "tower"+(c.bot?" bot":"");
+    // deterministic-ish varied heights
+    const h = 34 + ((parseInt(c.hash.slice(0,2),16)) % (maxH-34));
+    t.style.height = h+"px";
+    sky.appendChild(t);
+  });
+}
+function renderDag(){
+  const dag = $("dag"); dag.innerHTML="";
+  commits.forEach((c,i)=>{
+    if(i>0){
+      const l=document.createElement("div");
+      l.className="link"+(tampered && i===1 ? " broken":"");
+      const wrap=document.createElement("div"); wrap.className="node"; wrap.appendChild(l); dag.appendChild(wrap);
+    }
+    const o=document.createElement("div");
+    o.className="obj"+(tampered && i===0 ? " broken":"");
+    o.innerHTML=`<div class="hash">${c.hash}</div><div class="who${c.bot?' bot':''}">${c.who}${c.bot?' [bot]':''}</div>`;
+    const wrap=document.createElement("div"); wrap.className="node"; wrap.appendChild(o); dag.appendChild(wrap);
+  });
+}
+function renderOverlay(){
+  $("ovCount").textContent = commits.length;
+  $("ovSquares").textContent = commits.length;
+  $("pagesState").textContent = "live · gen "+pagesGen;
+}
+function setOperator(state){
+  const op=$("opstate");
+  if(state==="asleep"){ op.classList.add("asleep"); $("opval").textContent="asleep — hands off the wheel"; }
+  else { op.classList.remove("asleep"); $("opval").textContent="hands on the wheel"; }
+}
+function pulse(layerId, gearId){
+  const L=$(layerId); L.classList.add("pulsing","active");
+  if(gearId){ const g=$(gearId); g.classList.add("firing"); setTimeout(()=>g.classList.remove("firing"),600); }
+  setTimeout(()=>L.classList.remove("pulsing"),520);
+  setTimeout(()=>L.classList.remove("active"),700);
+}
+
+function renderAll(){ renderSkyline(); renderDag(); renderOverlay(); }
+
+// HUMAN push: operator awake. push -> substrate commit -> Pages rebuilds (machine) -> overlay updates
+$("push").addEventListener("click", ()=>{
+  setOperator("awake");
+  const c={ hash:rnd().slice(0,8), who:"Claude Opus 4.6", bot:false };
+  commits.push(c); pagesGen++;
+  renderAll();
+  pulse("L2"); setTimeout(()=>pulse("L3","g-push"),180); setTimeout(()=>pulse("L1"),360);
+  $("hint").textContent = "You pushed. The commit landed in the substrate, the on:push workflow rebuilt Pages, the overlay re-rendered. Your hand was on the wheel.";
+});
+
+// CRON: operator asleep. trigger -> machine fires FIRST -> emits commit into substrate -> overlay changes. No human.
+function fireCron(){
+  setOperator("asleep");
+  pulse("L3","g-cron");
+  setTimeout(()=>{
+    const c={ hash:rnd().slice(0,8), who:"github-actions", bot:true };
+    commits.push(c); pagesGen++;
+    renderAll();
+    pulse("L2");
+    setTimeout(()=>pulse("L1"),200);
+  }, 260);
+  $("hint").textContent = "3am. No command was given. A scheduled workflow woke, wrote a [bot] commit into the city beneath, and redeployed the streets above — while the operator slept. Who authored it? A label. Who's accountable? Unanswered.";
+}
+$("cron").addEventListener("click", ()=>{ clockMin=0; $("clock").innerHTML="03:<b>00</b>"; fireCron(); });
+
+// TAMPER: integrity demo — silently edit oldest author -> hash changes -> chain breaks (visible)
+$("tamper").addEventListener("click", ()=>{
+  if(tampered){ return; }
+  tampered = true;
+  commits[0].who = "Mallory";
+  commits[0].hash = rnd().slice(0,8); // editing the field changes the content hash
+  renderDag();
+  $("subNote").className="sub-note warn";
+  $("subNote").textContent = "Caught. Editing the author changed the commit's hash — its child no longer points to it, so the chain visibly breaks. You can forge a name at birth; you cannot rewrite one in the dark.";
+});
+
+$("reset").addEventListener("click", ()=>{
+  commits = JSON.parse(JSON.stringify(initial));
+  pagesGen=0; tampered=false; clockMin=59;
+  setOperator("awake");
+  $("clock").textContent="02:59";
+  $("subNote").className="sub-note"; $("subNote").textContent="try to rewrite history — the hashes will tell on you";
+  $("hint").textContent="Push a commit yourself, or let the clock reach 3am and watch the machinery rebuild the city with no one at the keyboard.";
+  renderAll();
+});
+
+renderAll();
+</script>
+</body>
+</html>
